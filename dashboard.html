@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSP Engineering ONCALL Dashboard — Live</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0f172a;--surface:#1e293b;--surface2:#334155;--text:#f1f5f9;--text2:#94a3b8;
+--accent:#3b82f6;--accent2:#8b5cf6;--red:#ef4444;--green:#22c55e;--orange:#f97316;--yellow:#eab308}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);padding:20px;min-height:100vh}
+
+.header{text-align:center;padding:28px 20px 18px;margin-bottom:24px;background:linear-gradient(135deg,#1e3a5f 0%,#2d1b69 100%);border-radius:16px;border:1px solid rgba(59,130,246,.3)}
+.header h1{font-size:2rem;font-weight:700;margin-bottom:6px}
+.header p{color:var(--text2);font-size:.95rem}
+.live-dot{display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header-controls{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:12px;flex-wrap:wrap}
+.header-controls span{color:var(--text2);font-size:.82rem}
+.btn{background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:background .2s}
+.btn:hover{background:#2563eb}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.countdown{font-variant-numeric:tabular-nums}
+
+/* ── Time-range filter bar ── */
+.filter-strip{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:24px;flex-wrap:wrap}
+.filter-strip label{color:var(--text2);font-size:.85rem;font-weight:600;margin-right:6px}
+.range-btn{background:var(--surface);color:var(--text2);border:1px solid var(--surface2);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:all .15s}
+.range-btn:hover{border-color:var(--accent);color:var(--text)}
+.range-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:30px}
+.kpi-card{background:var(--surface);border-radius:12px;padding:20px;border:1px solid var(--surface2);text-align:center;transition:transform .2s}
+.kpi-card:hover{transform:translateY(-2px)}
+.kpi-val{font-size:2.2rem;font-weight:800}
+.kpi-label{color:var(--text2);font-size:.85rem;margin-top:4px}
+.kpi-blue{color:var(--accent)}.kpi-red{color:var(--red)}.kpi-green{color:var(--green)}.kpi-orange{color:var(--orange)}.kpi-purple{color:var(--accent2)}
+
+.grid{display:grid;gap:24px;margin-bottom:30px}
+.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:1200px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+.card{background:var(--surface);border-radius:12px;padding:24px;border:1px solid var(--surface2)}
+.card h3{font-size:1.05rem;margin-bottom:16px;color:var(--text);border-bottom:2px solid var(--accent);padding-bottom:8px}
+.chart-container{position:relative;height:320px}
+.chart-container-lg{position:relative;height:400px}
+
+.section-title{font-size:1.3rem;font-weight:700;margin:30px 0 16px;padding-left:12px;border-left:4px solid var(--accent)}
+
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--surface2);color:var(--text);padding:10px 8px;text-align:left;position:sticky;top:0;z-index:1;white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{background:#475569}
+th .sa{font-size:.65rem;margin-left:3px;opacity:.4}
+td{padding:8px;border-bottom:1px solid var(--surface2)}
+tr:hover{background:rgba(59,130,246,.08)}
+.jira-link{color:var(--accent);text-decoration:none;font-weight:600}
+.jira-link:hover{text-decoration:underline}
+.priority-badge{padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600;white-space:nowrap}
+.p-blocker{background:#dc262633;color:#fca5a5}.p-critical{background:#ea580c33;color:#fdba74}
+.p-major{background:#f59e0b33;color:#fde68a}.p-minor{background:#3b82f633;color:#93c5fd}.p-trivial{background:#6b728033;color:#d1d5db}
+.sf-badge{background:var(--accent);color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;font-size:.8rem}
+
+.table-wrapper{max-height:500px;overflow-y:auto;border-radius:8px;border:1px solid var(--surface2)}
+.table-wrapper::-webkit-scrollbar{width:6px}
+.table-wrapper::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px}
+.tbl-filter{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.tbl-filter input{background:var(--surface2);border:1px solid #475569;color:var(--text);padding:8px 14px;border-radius:8px;font-size:.85rem;min-width:250px}
+.tbl-filter input:focus{outline:none;border-color:var(--accent)}
+.tbl-filter .rc{color:var(--text2);font-size:.8rem}
+
+.loading-overlay{position:fixed;inset:0;background:rgba(15,23,42,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999}
+.spinner{width:48px;height:48px;border:4px solid var(--surface2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay p{margin-top:16px;color:var(--text2);font-size:1rem}
+.loading-overlay .sub{font-size:.85rem;margin-top:6px}
+.footer{text-align:center;color:var(--text2);font-size:.8rem;margin-top:40px;padding:20px}
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner" id="loadSpinner"></div>
+  <p id="loadMsg">Fetching live data from Jira...</p>
+  <p class="sub" id="loadSub">This may take 30–60 seconds on first load</p>
+  <button class="btn" id="loadRetryBtn" style="display:none;margin-top:16px" onclick="triggerRetry()">Trigger Refresh &amp; Retry</button>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <h1>MSP Engineering ONCALL Dashboard</h1>
+  <p><a href="https://jira.nutanix.com/issues/?filter=174525" target="_blank" style="color:var(--accent)">JIRA Filter #174525</a> &bull; <span id="totalBadge">Loading…</span></p>
+  <div class="header-controls">
+    <span><span class="live-dot"></span>LIVE</span>
+    <span>Last refreshed: <strong id="lastRefreshed">—</strong></span>
+    <span>Next in: <strong id="countdown" class="countdown">—</strong></span>
+    <button class="btn" id="refreshBtn" onclick="manualRefresh()">Refresh Now</button>
+  </div>
+</div>
+
+<!-- Time-range filter -->
+<div class="filter-strip" id="rangeBar">
+  <label>Time Range:</label>
+  <button class="range-btn" data-months="3">Last 1 Qtr</button>
+  <button class="range-btn" data-months="6">Last 2 Qtrs</button>
+  <button class="range-btn" data-months="9">Last 3 Qtrs</button>
+  <button class="range-btn active" data-months="12">Last 1 Year</button>
+  <button class="range-btn" data-months="24">Last 2 Years</button>
+  <button class="range-btn" data-months="0">All Time</button>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row">
+  <div class="kpi-card"><div class="kpi-val kpi-blue" id="kpiTotal">—</div><div class="kpi-label">Total ONCalls (filtered)</div></div>
+  <div class="kpi-card"><div class="kpi-val kpi-red" id="kpiOpen">—</div><div class="kpi-label">Open (in range)</div></div>
+  <div class="kpi-card"><div class="kpi-val kpi-green" id="kpiClosed">—</div><div class="kpi-label">Closed (in range)</div></div>
+  <div class="kpi-card"><div class="kpi-val kpi-orange" id="kpiHighImpact">—</div><div class="kpi-label">High Impact (P0/P1/P2)</div></div>
+  <div class="kpi-card"><div class="kpi-val kpi-purple" id="kpiSF">—</div><div class="kpi-label">With SF Cases</div></div>
+</div>
+
+<!-- 1 & 6: Monthly + Open vs Closed -->
+<div class="section-title">1. ONCALL Trends Across Months & Open vs Closed</div>
+<div class="grid grid-2">
+  <div class="card"><h3>Monthly ONCALL Trend</h3><div class="chart-container"><canvas id="monthlyTrend"></canvas></div></div>
+  <div class="card"><h3>Open vs Closed per Month</h3><div class="chart-container"><canvas id="openVsClosed"></canvas></div></div>
+</div>
+
+<!-- 2: Versions + Components + Priority -->
+<div class="section-title">2. Trend Across Releases & Components</div>
+<div class="grid grid-2">
+  <div class="card"><h3>Top Fix Version/s</h3><div class="chart-container"><canvas id="versionChart"></canvas></div></div>
+  <div class="card"><h3>Top Affects Version/s</h3><div class="chart-container"><canvas id="affectsChart"></canvas></div></div>
+</div>
+<div class="grid grid-2" style="margin-top:0">
+  <div class="card"><h3>Top Components (CFDs)</h3><div class="chart-container"><canvas id="componentChart"></canvas></div></div>
+  <div class="card"><h3>Priority Distribution</h3><div class="chart-container"><canvas id="priorityChart"></canvas></div></div>
+</div>
+
+<!-- 3: Reporters + Labels -->
+<div class="section-title">3. Trend Across Reporters (Customer Proxy)</div>
+<div class="grid grid-2">
+  <div class="card"><h3>Top Reporters (Customer Representatives)</h3><div class="chart-container-lg"><canvas id="reporterChart"></canvas></div></div>
+  <div class="card"><h3>Top Labels</h3><div class="chart-container-lg"><canvas id="labelChart"></canvas></div></div>
+</div>
+
+<!-- 4: CFDs with SF Cases -->
+<div class="section-title">4. Top CFDs with High Salesforce Cases Attached</div>
+<div class="card">
+  <div class="tbl-filter"><input type="text" id="sfF" placeholder="Search…" oninput="filterTbl('sfTbl','sfF')"><span class="rc" id="sfC"></span></div>
+  <div class="table-wrapper"><table id="sfTbl"><thead id="sfH"></thead><tbody id="sfB"></tbody></table></div>
+</div>
+
+<!-- 5: High Impact -->
+<div class="section-title">5. High Impact ONCalls (P0 / P1 / P2)</div>
+<div class="card">
+  <div class="tbl-filter"><input type="text" id="hiF" placeholder="Search…" oninput="filterTbl('hiTbl','hiF')"><span class="rc" id="hiC"></span></div>
+  <div class="table-wrapper" style="max-height:600px"><table id="hiTbl"><thead id="hiH"></thead><tbody id="hiB"></tbody></table></div>
+</div>
+
+<!-- 6: Currently Open -->
+<div class="section-title" id="openTitle">6. Currently Open ONCalls</div>
+<div class="card">
+  <div class="tbl-filter"><input type="text" id="opF" placeholder="Search…" oninput="filterTbl('opTbl','opF')"><span class="rc" id="opC"></span></div>
+  <div class="table-wrapper" style="max-height:600px"><table id="opTbl"><thead id="opH"></thead><tbody id="opB"></tbody></table></div>
+</div>
+
+<!-- 7: All in range -->
+<div class="section-title" id="allTitle">7. All ONCalls in Selected Range</div>
+<div class="card">
+  <div class="tbl-filter"><input type="text" id="alF" placeholder="Search…" oninput="filterTbl('alTbl','alF')"><span class="rc" id="alC"></span></div>
+  <div class="table-wrapper" style="max-height:600px"><table id="alTbl"><thead id="alH"></thead><tbody id="alB"></tbody></table></div>
+</div>
+
+<div class="footer">MSP Engineering ONCALL Dashboard &bull; Live from <a href="https://jira.nutanix.com/issues/?filter=174525" style="color:var(--accent)">Filter #174525</a> &bull; Auto-refreshes every <span id="intTxt">30</span> min</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════════════════════════
+const COLORS=['#3b82f6','#8b5cf6','#ec4899','#f97316','#22c55e','#eab308','#06b6d4','#ef4444','#a855f7','#14b8a6','#f43f5e','#84cc16','#6366f1','#fb923c','#2dd4bf'];
+const PC={'Blocker - P0':'#dc2626','Critical - P1':'#ea580c','Major - P2':'#f59e0b','Minor - P3':'#3b82f6','Trivial - P4':'#6b7280'};
+const PCLS={'Blocker - P0':'p-blocker','Critical - P1':'p-critical','Major - P2':'p-major','Minor - P3':'p-minor','Trivial - P4':'p-trivial'};
+Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
+
+let RAW=[];            // all issues from server
+let selectedMonths=12; // default: last 1 year
+let charts={};
+let refreshTimer=null, countdownSec=0;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  DATA FETCHING
+// ══════════════════════════════════════════════════════════════════════════
+async function fetchData(){const r=await fetch('/api/data');if(r.status===202)return null;return r.json();}
+
+let loadAttempts=0;
+async function loadDashboard(){
+  const d=await fetchData();
+  if(!d||d.status==='loading'||d.status==='error'){
+    loadAttempts++;
+    const msgEl=document.getElementById('loadMsg');
+    const subEl=document.getElementById('loadSub');
+    const retryBtn=document.getElementById('loadRetryBtn');
+    const spinner=document.getElementById('loadSpinner');
+
+    if(d&&d.status==='error'){
+      msgEl.textContent='Jira MCP Server Unreachable';
+      subEl.innerHTML=d.message+'<br><span style="font-size:.75rem;color:#64748b;margin-top:4px;display:inline-block">Error: '+d.error+'</span>';
+      retryBtn.style.display='inline-block';
+      spinner.style.borderTopColor='#ef4444';
+    } else if(loadAttempts>10){
+      msgEl.textContent='Still waiting for data...';
+      subEl.textContent='Server is loading data from Jira ('+loadAttempts*3+'s elapsed)';
+      retryBtn.style.display='inline-block';
+    } else {
+      subEl.textContent='Waiting for data... ('+loadAttempts*3+'s)';
+    }
+    setTimeout(loadDashboard,3000);return;
+  }
+  document.getElementById('loadingOverlay').style.display='none';
+  RAW=d.issues;
+  document.getElementById('lastRefreshed').textContent=d.last_refreshed;
+  document.getElementById('intTxt').textContent=d.refresh_interval_min;
+  startCountdown(d.refresh_interval_min*60);
+  renderFromFilter();
+}
+
+async function triggerRetry(){
+  const btn=document.getElementById('loadRetryBtn');btn.disabled=true;btn.textContent='Triggering...';
+  document.getElementById('loadMsg').textContent='Triggering server refresh...';
+  document.getElementById('loadSub').textContent='Asking server to re-fetch from Jira. This may take a few minutes.';
+  document.getElementById('loadSpinner').style.borderTopColor='var(--accent)';
+  await fetch('/api/refresh',{method:'POST'});
+  loadAttempts=0;
+  btn.textContent='Triggered — waiting...';
+  setTimeout(()=>{btn.disabled=false;btn.textContent='Trigger Refresh & Retry';},30000);
+}
+
+async function manualRefresh(){
+  const btn=document.getElementById('refreshBtn');btn.disabled=true;btn.textContent='Refreshing…';
+  await fetch('/api/refresh',{method:'POST'});
+  const oldTs=document.getElementById('lastRefreshed').textContent;
+  const poll=async()=>{const d=await fetchData();if(d&&d.last_refreshed!==oldTs){RAW=d.issues;document.getElementById('lastRefreshed').textContent=d.last_refreshed;renderFromFilter();btn.disabled=false;btn.textContent='Refresh Now';startCountdown(d.refresh_interval_min*60);}else{setTimeout(poll,3000);}};
+  setTimeout(poll,5000);
+}
+
+function startCountdown(s){
+  countdownSec=s;if(refreshTimer)clearInterval(refreshTimer);
+  refreshTimer=setInterval(()=>{countdownSec--;if(countdownSec<=0){clearInterval(refreshTimer);loadDashboard();return;}
+    const m=Math.floor(countdownSec/60),sc=countdownSec%60;
+    document.getElementById('countdown').textContent=`${m}m ${String(sc).padStart(2,'0')}s`;},1000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  RANGE FILTER BAR
+// ══════════════════════════════════════════════════════════════════════════
+document.getElementById('rangeBar').addEventListener('click',e=>{
+  const btn=e.target.closest('.range-btn');if(!btn)return;
+  document.querySelectorAll('.range-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedMonths=parseInt(btn.dataset.months,10);
+  renderFromFilter();
+});
+
+function cutoffDate(){
+  if(selectedMonths===0)return new Date('1970-01-01');
+  const d=new Date();d.setMonth(d.getMonth()-selectedMonths);d.setDate(1);return d;
+}
+
+function filtered(){const c=cutoffDate();return RAW.filter(i=>new Date(i.created)>=c);}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  AGGREGATION  (runs client-side on every filter change)
+// ══════════════════════════════════════════════════════════════════════════
+function aggregate(issues){
+  const mTot={},mOpen={},mClosed={};
+  const compC={},verC={},affC={},priC={},lblC={},repC={};
+  let openList=[],hiList=[],sfList=[];
+  const now=new Date();
+
+  issues.forEach(r=>{
+    const mk=r.created.slice(0,7);  // YYYY-MM
+    mTot[mk]=(mTot[mk]||0)+1;
+    if(r.is_open){mOpen[mk]=(mOpen[mk]||0)+1;}else{mClosed[mk]=(mClosed[mk]||0)+1;}
+
+    r.components.forEach(c=>{compC[c]=(compC[c]||0)+1;});
+    r.fix_versions.forEach(v=>{verC[v]=(verC[v]||0)+1;});
+    (r.affects_versions||[]).forEach(v=>{affC[v]=(affC[v]||0)+1;});
+    priC[r.priority]=(priC[r.priority]||0)+1;
+    r.labels.forEach(l=>{lblC[l]=(lblC[l]||0)+1;});
+    repC[r.reporter]=(repC[r.reporter]||0)+1;
+
+    if(r.is_open) openList.push(r);
+    if(['Blocker - P0','Critical - P1','Major - P2'].includes(r.priority)) hiList.push(r);
+    if(r.sf_cases>0) sfList.push(r);
+  });
+
+  const months=Object.keys(mTot).sort();
+  const mLabels=months.map(m=>{const[y,mo]=m.split('-');return new Date(y,mo-1).toLocaleString('en',{month:'short',year:'numeric'});});
+
+  const topN=(obj,n)=>Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n);
+
+  sfList.sort((a,b)=>b.sf_cases-a.sf_cases);
+  const pOrd={'Blocker - P0':0,'Critical - P1':1,'Major - P2':2};
+  hiList.sort((a,b)=>(pOrd[a.priority]??9)-(pOrd[b.priority]??9)||a.created.localeCompare(b.created));
+
+  return {
+    total:issues.length,
+    openCount:openList.length,
+    closedCount:issues.length-openList.length,
+    hiCount:hiList.length,
+    sfCount:sfList.length,
+    mLabels, months,
+    mTot:months.map(m=>mTot[m]||0),
+    mOpen:months.map(m=>mOpen[m]||0),
+    mClosed:months.map(m=>mClosed[m]||0),
+    comp:topN(compC,15), ver:topN(verC,15), aff:topN(affC,20), rep:topN(repC,20),
+    pri:Object.entries(priC), lbl:topN(lblC,20),
+    openList, hiList:hiList.slice(0,200), sfList:sfList.slice(0,100),
+    allList:issues,
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MASTER RENDER
+// ══════════════════════════════════════════════════════════════════════════
+function renderFromFilter(){
+  const issues=filtered();
+  const a=aggregate(issues);
+
+  // KPIs
+  document.getElementById('kpiTotal').textContent=a.total;
+  document.getElementById('kpiOpen').textContent=a.openCount;
+  document.getElementById('kpiClosed').textContent=a.closedCount;
+  document.getElementById('kpiHighImpact').textContent=a.hiCount;
+  document.getElementById('kpiSF').textContent=a.sfCount;
+  document.getElementById('totalBadge').textContent=`${RAW.length} Total Issues`;
+  document.getElementById('openTitle').textContent=`6. Currently Open ONCalls (${a.openCount})`;
+  document.getElementById('allTitle').textContent=`7. All ONCalls in Selected Range (${a.total})`;
+
+  // Charts
+  lineChart('monthlyTrend',a.mLabels,a.mTot,'ONCalls Created','#3b82f6');
+  dualLineChart('openVsClosed',a.mLabels,a.mOpen,a.mClosed);
+  hBar('versionChart',a.ver,COLORS);
+  hBar('affectsChart',a.aff,COLORS);
+  hBar('componentChart',a.comp,COLORS);
+  doughnut('priorityChart',a.pri);
+  hBar('reporterChart',a.rep,['#8b5cf6cc']);
+  hBar('labelChart',a.lbl,['#06b6d4cc']);
+
+  // Tables
+  const c8=['key','summary','status','priority','created','assignee','components','sf_cases'];
+  const h8=['Key','Summary','Status','Priority','Created','Assignee','Components','SF Cases'];
+  const c7=['key','summary','status','priority','created','components','sf_cases'];
+  const h7=['Key','Summary','Status','Priority','Created','Components','SF Cases'];
+
+  mkTable('sfH','sfB',h7,c7,a.sfList);  document.getElementById('sfC').textContent=`${a.sfList.length} rows`;
+  mkTable('hiH','hiB',h8,c8,a.hiList);  document.getElementById('hiC').textContent=`${a.hiList.length} rows`;
+  mkTable('opH','opB',h8,c8,a.openList);document.getElementById('opC').textContent=`${a.openList.length} rows`;
+  mkTable('alH','alB',h8,c8,a.allList); document.getElementById('alC').textContent=`${a.allList.length} rows`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CHART BUILDERS
+// ══════════════════════════════════════════════════════════════════════════
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function lineChart(id,labels,data,label,color){
+  destroyChart(id);
+  charts[id]=new Chart(document.getElementById(id),{type:'line',
+    data:{labels,datasets:[{label,data,borderColor:color,backgroundColor:color+'26',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:color,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{maxRotation:45}},y:{beginAtZero:true,grid:{color:'#1e293b'}}}}});
+}
+
+function dualLineChart(id,labels,openD,closedD){
+  destroyChart(id);
+  charts[id]=new Chart(document.getElementById(id),{type:'line',
+    data:{labels,datasets:[
+      {label:'Open',data:openD,borderColor:'#ef4444',backgroundColor:'#ef444422',fill:false,tension:.35,pointRadius:3,pointBackgroundColor:'#ef4444',borderWidth:2},
+      {label:'Closed',data:closedD,borderColor:'#22c55e',backgroundColor:'#22c55e22',fill:false,tension:.35,pointRadius:3,pointBackgroundColor:'#22c55e',borderWidth:2}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},
+      scales:{x:{grid:{display:false},ticks:{maxRotation:45}},y:{beginAtZero:true,grid:{color:'#1e293b'}}}}});
+}
+
+function hBar(id,pairs,colors){
+  destroyChart(id);
+  const labels=pairs.map(p=>p[0]),data=pairs.map(p=>p[1]);
+  const bg=colors.length===1?colors[0]:labels.map((_,i)=>colors[i%colors.length]);
+  charts[id]=new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:bg,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,grid:{color:'#1e293b'}},y:{grid:{display:false}}}}});
+}
+
+function doughnut(id,pairs){
+  destroyChart(id);
+  const labels=pairs.map(p=>p[0]),data=pairs.map(p=>p[1]);
+  const bg=labels.map(l=>PC[l]||'#9ca3af');
+  charts[id]=new Chart(document.getElementById(id),{type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:bg,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:12,usePointStyle:true}}}}});
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TABLE BUILDERS
+// ══════════════════════════════════════════════════════════════════════════
+function mkTable(hId,bId,headers,cols,rows){
+  document.getElementById(hId).innerHTML='<tr>'+headers.map((h,i)=>`<th onclick="sortTbl('${bId}',${i})">${h}<span class="sa">&#x25B4;&#x25BE;</span></th>`).join('')+'</tr>';
+  document.getElementById(bId).innerHTML=rows.map(r=>'<tr>'+cols.map(c=>cell(c,r)).join('')+'</tr>').join('');
+}
+
+function cell(col,row){
+  const v=row[col];
+  if(col==='key') return `<td><a href="https://jira.nutanix.com/browse/${v}" target="_blank" class="jira-link">${v}</a></td>`;
+  if(col==='priority'){const cls=PCLS[v]||'';return `<td><span class="priority-badge ${cls}">${v}</span></td>`;}
+  if(col==='sf_cases'){const n=parseInt(v)||0;return n?`<td><span class="sf-badge">${n}</span></td>`:'<td>0</td>';}
+  if(col==='summary'){const s=String(v||'');return `<td title="${s.replace(/"/g,'&quot;')}">${s.length>120?s.slice(0,120)+'…':s}</td>`;}
+  if(col==='components'){const a=Array.isArray(v)?v.join(', '):v;return `<td>${a||''}</td>`;}
+  return `<td>${v??''}</td>`;
+}
+
+function filterTbl(tblId,fId){
+  const f=document.getElementById(fId).value.toLowerCase();
+  const rows=document.getElementById(tblId).querySelectorAll('tbody tr');
+  let vis=0;rows.forEach(r=>{const m=r.textContent.toLowerCase().includes(f);r.style.display=m?'':'none';if(m)vis++;});
+  const cId=tblId.replace('Tbl','C');
+  const el=document.getElementById(cId);if(el)el.textContent=f?`${vis} / ${rows.length} rows`:`${rows.length} rows`;
+}
+
+function sortTbl(bId,ci){
+  const tb=document.getElementById(bId);const rows=Array.from(tb.querySelectorAll('tr'));
+  const dir=tb.dataset.sd==='a'?'d':'a';tb.dataset.sd=dir;
+  rows.sort((a,b)=>{let va=a.children[ci]?.textContent||'',vb=b.children[ci]?.textContent||'';
+    const na=parseFloat(va),nb=parseFloat(vb);
+    if(!isNaN(na)&&!isNaN(nb))return dir==='a'?na-nb:nb-na;
+    return dir==='a'?va.localeCompare(vb):vb.localeCompare(va);});
+  rows.forEach(r=>tb.appendChild(r));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════════════
+loadDashboard();
+</script>
+</body>
+</html>
