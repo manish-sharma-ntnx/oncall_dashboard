@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-MCP_BASE_URL = "http://10.113.24.33:3008/mcp"
+MCP_BASE_URL = "http://10.113.24.33:3008/mcp/"
 JIRA_FILTER_JQL = "filter=174525 ORDER BY created DESC"
 JIRA_FIELDS = (
     "summary,status,created,updated,priority,assignee,labels,"
@@ -84,13 +84,15 @@ class MCPClient:
             },
         }
         r = requests.post(self.base_url, json=payload, timeout=60,
-                          headers=self._headers(), allow_redirects=False)
-        if r.is_redirect or r.status_code in (301, 302, 307, 308):
-            raise RuntimeError(f"MCP server redirect ({r.status_code}) — server may be down")
+                          headers=self._headers(), allow_redirects=True)
+        if r.status_code >= 400:
+            raise RuntimeError(f"MCP initialize failed: HTTP {r.status_code} — {r.text[:200]}")
         self.session_id = r.headers.get("mcp-session-id")
         notif = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
-        requests.post(self.base_url, json=notif, timeout=30,
-                      headers=self._headers(), allow_redirects=False)
+        notif_resp = requests.post(self.base_url, json=notif, timeout=30,
+                                  headers=self._headers(), allow_redirects=True)
+        if notif_resp.status_code >= 400:
+            raise RuntimeError(f"MCP initialized notification failed: HTTP {notif_resp.status_code} — {notif_resp.text[:200]}")
         log.info("MCP session established: %s", self.session_id)
 
     def call_tool(self, name: str, arguments: dict, timeout: int = 120):
@@ -104,12 +106,16 @@ class MCPClient:
         }
         try:
             r = requests.post(self.base_url, json=payload, timeout=timeout,
-                              headers=self._headers(), allow_redirects=False)
+                              headers=self._headers(), allow_redirects=True)
+            if r.status_code >= 400:
+                raise RuntimeError(f"MCP tool call failed: HTTP {r.status_code} — {r.text[:200]}")
         except Exception:
             self.session_id = None
             self.connect()
             r = requests.post(self.base_url, json=payload, timeout=timeout,
-                              headers=self._headers(), allow_redirects=False)
+                              headers=self._headers(), allow_redirects=True)
+            if r.status_code >= 400:
+                raise RuntimeError(f"MCP tool call failed: HTTP {r.status_code} — {r.text[:200]}")
 
         data = self._parse_sse(r.text)
         if not data:
