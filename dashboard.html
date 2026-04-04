@@ -34,6 +34,8 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .kpi-card{background:var(--surface);border-radius:12px;padding:20px;border:1px solid var(--surface2);text-align:center;transition:transform .2s}
 .kpi-card:hover{transform:translateY(-2px)}
 .kpi-val{font-size:2.2rem;font-weight:800}
+.kpi-link{display:inline-block;color:var(--accent);text-decoration:none}
+.kpi-link:hover{text-decoration:underline}
 .kpi-label{color:var(--text2);font-size:.85rem;margin-top:4px}
 .kpi-blue{color:var(--accent)}.kpi-red{color:var(--red)}.kpi-green{color:var(--green)}.kpi-orange{color:var(--orange)}.kpi-purple{color:var(--accent2)}
 
@@ -101,71 +103,87 @@ tr:hover{background:rgba(59,130,246,.08)}
 <!-- Time-range filter -->
 <div class="filter-strip" id="rangeBar">
   <label>Time Range:</label>
-  <button class="range-btn" data-months="3">Last 1 Qtr</button>
+  <button class="range-btn active" data-months="3">Last 1 Qtr</button>
   <button class="range-btn" data-months="6">Last 2 Qtrs</button>
   <button class="range-btn" data-months="9">Last 3 Qtrs</button>
-  <button class="range-btn active" data-months="12">Last 1 Year</button>
+  <button class="range-btn" data-months="12">Last 1 Year</button>
   <button class="range-btn" data-months="24">Last 2 Years</button>
   <button class="range-btn" data-months="0">All Time</button>
 </div>
 
 <!-- KPI Cards -->
 <div class="kpi-row">
-  <div class="kpi-card"><div class="kpi-val kpi-blue" id="kpiTotal">—</div><div class="kpi-label">Total ONCalls (filtered)</div></div>
-  <div class="kpi-card"><div class="kpi-val kpi-red" id="kpiOpen">—</div><div class="kpi-label">Open (in range)</div></div>
-  <div class="kpi-card"><div class="kpi-val kpi-green" id="kpiClosed">—</div><div class="kpi-label">Closed (in range)</div></div>
-  <div class="kpi-card"><div class="kpi-val kpi-orange" id="kpiHighImpact">—</div><div class="kpi-label">High Impact (P0/P1/P2)</div></div>
-  <div class="kpi-card"><div class="kpi-val kpi-purple" id="kpiSF">—</div><div class="kpi-label">With SF Cases</div></div>
+  <div class="kpi-card"><a class="kpi-val kpi-link" id="kpiTotalLink" href="https://jira.nutanix.com/issues/?filter=174525" target="_blank" rel="noopener noreferrer" title="Open filtered issues in Jira"><span id="kpiTotal">—</span></a><div class="kpi-label">Total ONCalls (filtered)</div></div>
+  <div class="kpi-card"><a class="kpi-val kpi-link kpi-red" id="kpiOpenLink" href="https://jira.nutanix.com/issues/?filter=174525" target="_blank" rel="noopener noreferrer" title="Open ONCalls in Jira"><span id="kpiOpen">—</span></a><div class="kpi-label">Open (in range)</div></div>
+  <div class="kpi-card"><a class="kpi-val kpi-link kpi-green" id="kpiClosedLink" href="https://jira.nutanix.com/issues/?filter=174525" target="_blank" rel="noopener noreferrer" title="Open closed ONCalls in Jira"><span id="kpiClosed">—</span></a><div class="kpi-label">Closed (in range)</div></div>
+  <div class="kpi-card"><a class="kpi-val kpi-link kpi-orange" id="kpiHighImpactLink" href="https://jira.nutanix.com/issues/?filter=174525" target="_blank" rel="noopener noreferrer" title="Open high-impact ONCalls in Jira"><span id="kpiHighImpact">—</span></a><div class="kpi-label">High Impact (P0/P1/P2)</div></div>
+  <div class="kpi-card"><a class="kpi-val kpi-link kpi-purple" id="kpiSFLink" href="https://jira.nutanix.com/issues/?filter=174525" target="_blank" rel="noopener noreferrer" title="Open ONCalls with SF cases in Jira"><span id="kpiSF">—</span></a><div class="kpi-label">With SF Cases</div></div>
 </div>
 
 <!-- 1 & 6: Monthly + Open vs Closed -->
 <div class="section-title">1. ONCALL Trends Across Months & Open vs Closed</div>
-<div class="grid grid-2">
+<div class="grid grid-3">
   <div class="card"><h3>Monthly ONCALL Trend</h3><div class="chart-container"><canvas id="monthlyTrend"></canvas></div></div>
   <div class="card"><h3>Open vs Closed per Month</h3><div class="chart-container"><canvas id="openVsClosed"></canvas></div></div>
+  <div class="card"><h3>SF Cases per Month</h3><div class="chart-container"><canvas id="sfCasesTrend"></canvas></div></div>
 </div>
 
-<!-- 2: Versions + Components + Priority -->
-<div class="section-title">2. Trend Across Releases & Components</div>
-<div class="grid grid-2">
+<!-- 2: Versions & Priority -->
+<div class="section-title">2. Trend Across Releases & Priority</div>
+<div class="grid grid-3">
   <div class="card"><h3>Top Fix Version/s</h3><div class="chart-container"><canvas id="versionChart"></canvas></div></div>
   <div class="card"><h3>Top Affects Version/s</h3><div class="chart-container"><canvas id="affectsChart"></canvas></div></div>
-</div>
-<div class="grid grid-2" style="margin-top:0">
-  <div class="card"><h3>Top Components (CFDs)</h3><div class="chart-container"><canvas id="componentChart"></canvas></div></div>
   <div class="card"><h3>Priority Distribution</h3><div class="chart-container"><canvas id="priorityChart"></canvas></div></div>
 </div>
 
-<!-- 3: Reporters + Labels -->
-<div class="section-title">3. Trend Across Reporters (Customer Proxy)</div>
+<!-- 3: Components & Impact -->
+<div class="section-title">3. Trend Across Components & Impact</div>
+<div class="grid grid-2">
+  <div class="card"><h3>Top Components (CFDs)</h3><div class="chart-container-lg"><canvas id="componentChart"></canvas></div></div>
+  <div class="card"><h3>Top Impacts</h3><div class="chart-container-lg"><canvas id="impactChart"></canvas></div></div>
+</div>
+
+<!-- 4: Reporters & Labels -->
+<div class="section-title">4. Trend Across Reporters & Labels</div>
 <div class="grid grid-2">
   <div class="card"><h3>Top Reporters (Customer Representatives)</h3><div class="chart-container-lg"><canvas id="reporterChart"></canvas></div></div>
   <div class="card"><h3>Top Labels</h3><div class="chart-container-lg"><canvas id="labelChart"></canvas></div></div>
 </div>
 
-<!-- 4: CFDs with SF Cases -->
-<div class="section-title">4. Top CFDs with High Salesforce Cases Attached</div>
+<!-- 5: Monthly Labels -->
+<div class="section-title">5. Monthly Labels Trend</div>
+<div class="card" style="margin-bottom: 30px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--accent); margin-bottom:16px; padding-bottom:8px;">
+    <h3 style="border:none; margin:0; padding:0;">Labels per Month</h3>
+    <div style="font-size:0.8rem; color:var(--text2);">Click labels below to show/hide</div>
+  </div>
+  <div id="labelToggles" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;"></div>
+  <div class="chart-container-lg"><canvas id="monthlyLabelsChart"></canvas></div>
+</div>
+
+<!-- 6: CFDs with SF Cases -->
+<div class="section-title">6. Top CFDs with High Salesforce Cases Attached</div>
 <div class="card">
   <div class="tbl-filter"><input type="text" id="sfF" placeholder="Search…" oninput="filterTbl('sfTbl','sfF')"><span class="rc" id="sfC"></span></div>
   <div class="table-wrapper"><table id="sfTbl"><thead id="sfH"></thead><tbody id="sfB"></tbody></table></div>
 </div>
 
-<!-- 5: High Impact -->
-<div class="section-title">5. High Impact ONCalls (P0 / P1 / P2)</div>
+<!-- 7: High Impact -->
+<div class="section-title">7. High Impact ONCalls (P0 / P1 / P2)</div>
 <div class="card">
   <div class="tbl-filter"><input type="text" id="hiF" placeholder="Search…" oninput="filterTbl('hiTbl','hiF')"><span class="rc" id="hiC"></span></div>
   <div class="table-wrapper" style="max-height:600px"><table id="hiTbl"><thead id="hiH"></thead><tbody id="hiB"></tbody></table></div>
 </div>
 
-<!-- 6: Currently Open -->
-<div class="section-title" id="openTitle">6. Currently Open ONCalls</div>
+<!-- 8: Currently Open -->
+<div class="section-title" id="openTitle">8. Currently Open ONCalls</div>
 <div class="card">
   <div class="tbl-filter"><input type="text" id="opF" placeholder="Search…" oninput="filterTbl('opTbl','opF')"><span class="rc" id="opC"></span></div>
   <div class="table-wrapper" style="max-height:600px"><table id="opTbl"><thead id="opH"></thead><tbody id="opB"></tbody></table></div>
 </div>
 
-<!-- 7: All in range -->
-<div class="section-title" id="allTitle">7. All ONCalls in Selected Range</div>
+<!-- 9: All in range -->
+<div class="section-title" id="allTitle">9. All ONCalls in Selected Range</div>
 <div class="card">
   <div class="tbl-filter"><input type="text" id="alF" placeholder="Search…" oninput="filterTbl('alTbl','alF')"><span class="rc" id="alC"></span></div>
   <div class="table-wrapper" style="max-height:600px"><table id="alTbl"><thead id="alH"></thead><tbody id="alB"></tbody></table></div>
@@ -183,9 +201,10 @@ const PCLS={'Blocker - P0':'p-blocker','Critical - P1':'p-critical','Major - P2'
 Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
 
 let RAW=[];            // all issues from server
-let selectedMonths=12; // default: last 1 year
+let selectedMonths=3; // default: last 1 qtr
 let charts={};
 let refreshTimer=null, countdownSec=0;
+let selectedLabels=new Set();
 
 // ══════════════════════════════════════════════════════════════════════════
 //  DATA FETCHING
@@ -268,28 +287,76 @@ function cutoffDate(){
 
 function filtered(){const c=cutoffDate();return RAW.filter(i=>new Date(i.created)>=c);}
 
+function formatJqlDate(d){
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function toJiraSearchUrl(jql){
+  return `https://jira.nutanix.com/issues/?jql=${encodeURIComponent(jql)}`;
+}
+
+function baseRangeJql(){
+  if(selectedMonths===0) return 'filter = 174525';
+  return `filter = 174525 AND created >= "${formatJqlDate(cutoffDate())}"`;
+}
+
+function buildKpiUrl(issues,fallbackClause=''){
+  const base=baseRangeJql();
+
+  // For smaller filtered sets, use exact keys so Jira count matches KPI exactly.
+  if(issues.length>0&&issues.length<=200){
+    const keys=issues.map(i=>`"${i.key}"`).join(',');
+    return toJiraSearchUrl(`${base} AND key in (${keys}) ORDER BY created DESC`);
+  }
+
+  const extra=fallbackClause?` AND ${fallbackClause}`:'';
+  return toJiraSearchUrl(`${base}${extra} ORDER BY created DESC`);
+}
+
+function buildKpiTotalUrl(issues){
+  if(selectedMonths===0) return 'https://jira.nutanix.com/issues/?filter=174525';
+  return buildKpiUrl(issues);
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  AGGREGATION  (runs client-side on every filter change)
 // ══════════════════════════════════════════════════════════════════════════
 function aggregate(issues){
-  const mTot={},mOpen={},mClosed={};
-  const compC={},verC={},affC={},priC={},lblC={},repC={};
-  let openList=[],hiList=[],sfList=[];
+  const mTot={},mOpen={},mClosed={},mSf={},mLbl={};
+  const compC={},verC={},affC={},priC={},lblC={},repC={},impC={};
+  let openList=[],closedList=[],hiList=[],sfList=[];
   const now=new Date();
 
   issues.forEach(r=>{
     const mk=r.created.slice(0,7);  // YYYY-MM
     mTot[mk]=(mTot[mk]||0)+1;
     if(r.is_open){mOpen[mk]=(mOpen[mk]||0)+1;}else{mClosed[mk]=(mClosed[mk]||0)+1;}
+    mSf[mk]=(mSf[mk]||0)+(parseInt(r.sf_cases)||0);
 
-    r.components.forEach(c=>{compC[c]=(compC[c]||0)+1;});
+    if(!mLbl[mk]) mLbl[mk]={};
+
+    r.components.forEach(c=>{
+      compC[c]=(compC[c]||0)+1;
+    });
     r.fix_versions.forEach(v=>{verC[v]=(verC[v]||0)+1;});
     (r.affects_versions||[]).forEach(v=>{affC[v]=(affC[v]||0)+1;});
+    
     priC[r.priority]=(priC[r.priority]||0)+1;
-    r.labels.forEach(l=>{lblC[l]=(lblC[l]||0)+1;});
+    
+    (r.impacts||[]).forEach(imp=>{
+      impC[imp]=(impC[imp]||0)+1;
+    });
+    
+    r.labels.forEach(l=>{
+      lblC[l]=(lblC[l]||0)+1;
+      mLbl[mk][l]=(mLbl[mk][l]||0)+1;
+    });
     repC[r.reporter]=(repC[r.reporter]||0)+1;
 
-    if(r.is_open) openList.push(r);
+    if(r.is_open) openList.push(r); else closedList.push(r);
     if(['Blocker - P0','Critical - P1','Major - P2'].includes(r.priority)) hiList.push(r);
     if(r.sf_cases>0) sfList.push(r);
   });
@@ -302,6 +369,8 @@ function aggregate(issues){
   sfList.sort((a,b)=>b.sf_cases-a.sf_cases);
   const pOrd={'Blocker - P0':0,'Critical - P1':1,'Major - P2':2};
   hiList.sort((a,b)=>(pOrd[a.priority]??9)-(pOrd[b.priority]??9)||a.created.localeCompare(b.created));
+  const hiListTable=hiList.slice(0,200);
+  const sfListTable=sfList.slice(0,100);
 
   return {
     total:issues.length,
@@ -313,9 +382,11 @@ function aggregate(issues){
     mTot:months.map(m=>mTot[m]||0),
     mOpen:months.map(m=>mOpen[m]||0),
     mClosed:months.map(m=>mClosed[m]||0),
-    comp:topN(compC,15), ver:topN(verC,15), aff:topN(affC,20), rep:topN(repC,20),
-    pri:Object.entries(priC), lbl:topN(lblC,20),
-    openList, hiList:hiList.slice(0,200), sfList:sfList.slice(0,100),
+    mSf:months.map(m=>mSf[m]||0),
+    mLbl,
+    comp:topN(compC,20), ver:topN(verC,15), aff:topN(affC,20), rep:topN(repC,20),
+    pri:Object.entries(priC), imp:topN(impC,20), lbl:topN(lblC,20),
+    openList, closedList, hiList, sfList, hiListTable, sfListTable,
     allList:issues,
   };
 }
@@ -326,26 +397,91 @@ function aggregate(issues){
 function renderFromFilter(){
   const issues=filtered();
   const a=aggregate(issues);
+  const openClause='statusCategory != Done AND status not in (Closed, Resolved, Done, Complete, Cancelled)';
+  const closedClause='(statusCategory = Done OR status in (Closed, Resolved, Done, Complete, Cancelled))';
+  const hiClause='priority in ("Blocker - P0", "Critical - P1", "Major - P2")';
+  const sfClause='cf[12364] > 0';
 
   // KPIs
   document.getElementById('kpiTotal').textContent=a.total;
+  document.getElementById('kpiTotalLink').href=buildKpiTotalUrl(issues);
+  document.getElementById('kpiTotalLink').title=`Open ${a.total} filtered issues in Jira`;
   document.getElementById('kpiOpen').textContent=a.openCount;
   document.getElementById('kpiClosed').textContent=a.closedCount;
   document.getElementById('kpiHighImpact').textContent=a.hiCount;
   document.getElementById('kpiSF').textContent=a.sfCount;
+  document.getElementById('kpiOpenLink').href=buildKpiUrl(a.openList,openClause);
+  document.getElementById('kpiOpenLink').title=`Open ${a.openCount} open ONCalls in Jira`;
+  document.getElementById('kpiClosedLink').href=buildKpiUrl(a.closedList,closedClause);
+  document.getElementById('kpiClosedLink').title=`Open ${a.closedCount} closed ONCalls in Jira`;
+  document.getElementById('kpiHighImpactLink').href=buildKpiUrl(a.hiList,hiClause);
+  document.getElementById('kpiHighImpactLink').title=`Open ${a.hiCount} high-impact ONCalls in Jira`;
+  document.getElementById('kpiSFLink').href=buildKpiUrl(a.sfList,sfClause);
+  document.getElementById('kpiSFLink').title=`Open ${a.sfCount} ONCalls with SF cases in Jira`;
   document.getElementById('totalBadge').textContent=`${RAW.length} Total Issues`;
-  document.getElementById('openTitle').textContent=`6. Currently Open ONCalls (${a.openCount})`;
-  document.getElementById('allTitle').textContent=`7. All ONCalls in Selected Range (${a.total})`;
+  document.getElementById('openTitle').textContent=`8. Currently Open ONCalls (${a.openCount})`;
+  document.getElementById('allTitle').textContent=`9. All ONCalls in Selected Range (${a.total})`;
 
   // Charts
   lineChart('monthlyTrend',a.mLabels,a.mTot,'ONCalls Created','#3b82f6');
   dualLineChart('openVsClosed',a.mLabels,a.mOpen,a.mClosed);
+  lineChart('sfCasesTrend',a.mLabels,a.mSf,'Salesforce Cases','#a855f7');
   hBar('versionChart',a.ver,COLORS);
   hBar('affectsChart',a.aff,COLORS);
-  hBar('componentChart',a.comp,COLORS);
+  hBar('componentChart',a.comp,['#ec4899cc']);
+  hBar('impactChart',a.imp,['#14b8a6cc']);
   doughnut('priorityChart',a.pri);
   hBar('reporterChart',a.rep,['#8b5cf6cc']);
   hBar('labelChart',a.lbl,['#06b6d4cc']);
+
+  // Handle label toggles for Monthly Labels Chart
+  const top20Labels = a.lbl.slice(0, 20).map(p => p[0]);
+  if (selectedLabels.size === 0) {
+    top20Labels.slice(0, 5).forEach(l => selectedLabels.add(l)); // Default to top 5
+  }
+  
+  const togglesContainer = document.getElementById('labelToggles');
+  togglesContainer.innerHTML = '';
+  top20Labels.forEach((lbl, i) => {
+    const btn = document.createElement('button');
+    const isActive = selectedLabels.has(lbl);
+    btn.textContent = lbl;
+    btn.style.cssText = `
+      background: ${isActive ? COLORS[i % COLORS.length] : 'var(--surface2)'};
+      color: ${isActive ? '#fff' : 'var(--text2)'};
+      border: 1px solid ${isActive ? COLORS[i % COLORS.length] : '#475569'};
+      padding: 4px 12px; border-radius: 16px; font-size: 0.75rem; cursor: pointer;
+      transition: all 0.2s;
+    `;
+    btn.onclick = () => {
+      if (selectedLabels.has(lbl)) selectedLabels.delete(lbl);
+      else selectedLabels.add(lbl);
+      renderFromFilter(); // Re-render to update chart and buttons
+    };
+    togglesContainer.appendChild(btn);
+  });
+
+  const labelDatasets = top20Labels.filter(lbl => selectedLabels.has(lbl)).map((lbl, i) => ({
+    type: 'bar',
+    label: lbl,
+    data: a.months.map(m => (a.mLbl[m] && a.mLbl[m][lbl]) || 0),
+    backgroundColor: COLORS[top20Labels.indexOf(lbl) % COLORS.length]
+  }));
+  
+  labelDatasets.unshift({
+    type: 'line',
+    label: 'Total ONCalls',
+    data: a.mTot,
+    borderColor: '#3b82f6',
+    backgroundColor: '#3b82f626',
+    fill: true,
+    tension: 0.35,
+    pointRadius: 3,
+    pointBackgroundColor: '#3b82f6',
+    borderWidth: 2
+  });
+
+  mixedBarLineChart('monthlyLabelsChart', a.mLabels, labelDatasets);
 
   // Tables
   const c8=['key','summary','status','priority','created','assignee','components','sf_cases'];
@@ -353,8 +489,8 @@ function renderFromFilter(){
   const c7=['key','summary','status','priority','created','components','sf_cases'];
   const h7=['Key','Summary','Status','Priority','Created','Components','SF Cases'];
 
-  mkTable('sfH','sfB',h7,c7,a.sfList);  document.getElementById('sfC').textContent=`${a.sfList.length} rows`;
-  mkTable('hiH','hiB',h8,c8,a.hiList);  document.getElementById('hiC').textContent=`${a.hiList.length} rows`;
+  mkTable('sfH','sfB',h7,c7,a.sfListTable);  document.getElementById('sfC').textContent=`${a.sfListTable.length} rows`;
+  mkTable('hiH','hiB',h8,c8,a.hiListTable);  document.getElementById('hiC').textContent=`${a.hiListTable.length} rows`;
   mkTable('opH','opB',h8,c8,a.openList);document.getElementById('opC').textContent=`${a.openList.length} rows`;
   mkTable('alH','alB',h8,c8,a.allList); document.getElementById('alC').textContent=`${a.allList.length} rows`;
 }
@@ -396,10 +532,18 @@ function hBar(id,pairs,colors){
 function doughnut(id,pairs){
   destroyChart(id);
   const labels=pairs.map(p=>p[0]),data=pairs.map(p=>p[1]);
-  const bg=labels.map(l=>PC[l]||'#9ca3af');
+  const bg=labels.map((l,i)=>PC[l]||COLORS[i%COLORS.length]);
   charts[id]=new Chart(document.getElementById(id),{type:'doughnut',
     data:{labels,datasets:[{data,backgroundColor:bg,borderWidth:0}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:12,usePointStyle:true}}}}});
+}
+
+function mixedBarLineChart(id,labels,datasets){
+  destroyChart(id);
+  charts[id]=new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:10}}},
+      scales:{x:{grid:{display:true,color:'#1e293b'}},y:{beginAtZero:true,grid:{color:'#1e293b'}}}}});
 }
 
 // ══════════════════════════════════════════════════════════════════════════

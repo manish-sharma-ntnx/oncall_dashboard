@@ -27,7 +27,7 @@ MCP_BASE_URL = "http://10.113.24.33:3008/mcp/"
 JIRA_FILTER_JQL = "filter=174525 ORDER BY created DESC"
 JIRA_FIELDS = (
     "summary,status,created,updated,priority,assignee,labels,"
-    "reporter,fixVersions,components,resolution,versions,customfield_12364"
+    "reporter,fixVersions,components,resolution,versions,customfield_12364,customfield_10011"
 )
 PAGE_SIZE = 50
 REFRESH_INTERVAL_SECONDS = 30 * 60  # 30 minutes
@@ -254,12 +254,26 @@ def process_issues(issues: list, affects_map: dict = None) -> dict:
         sf = issue.get("custom_fields", {}).get("customfield_12364", {})
         sf_cases = sf.get("value", 0) if isinstance(sf, dict) else 0
 
+        impacts = []
+        impact_field = issue.get("custom_fields", {}).get("customfield_10011", {})
+        if isinstance(impact_field, dict) and "value" in impact_field:
+            val = impact_field["value"]
+            if isinstance(val, list):
+                for imp in val:
+                    if isinstance(imp, dict) and "value" in imp:
+                        impacts.append(imp["value"])
+                    elif isinstance(imp, str):
+                        impacts.append(imp)
+            elif isinstance(val, str):
+                impacts.append(val)
+
         issue_key = issue["key"]
         rows.append({
             "key": issue_key,
             "summary": issue.get("summary", ""),
             "status": status_name,
             "priority": issue.get("priority", {}).get("name", "Unknown"),
+            "impacts": impacts,
             "created": created_str[:10],
             "assignee": assignee.get("display_name", "Unassigned") if assignee else "Unassigned",
             "reporter": reporter.get("display_name", "Unknown") if reporter else "Unknown",
