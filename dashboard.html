@@ -21,7 +21,13 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .btn{background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:background .2s}
 .btn:hover{background:#2563eb}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+
 .countdown{font-variant-numeric:tabular-nums}
+.tab-container{display:flex;justify-content:center;gap:16px;margin-bottom:24px;margin-top:-10px}
+.tab-btn{background:var(--surface);color:var(--text2);border:2px solid var(--surface2);padding:10px 30px;border-radius:12px;cursor:pointer;font-size:1.05rem;font-weight:700;transition:all .2s;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+.tab-btn:hover{border-color:var(--accent);color:var(--text);transform:translateY(-1px)}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
 
 /* ── Time-range filter bar ── */
 .filter-strip{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:24px;flex-wrap:wrap}
@@ -100,6 +106,12 @@ tr:hover{background:rgba(59,130,246,.08)}
   </div>
 </div>
 
+<!-- Tabs -->
+<div class="tab-container">
+  <button class="tab-btn active" id="tabOncall" onclick="switchTab('oncall')">ONCALLs (Filter 174525)</button>
+  <button class="tab-btn" id="tabCfd" onclick="switchTab('cfd')">Top CFDs (Filter 127170)</button>
+</div>
+
 <!-- Time-range filter -->
 <div class="filter-strip" id="rangeBar">
   <label>Time Range:</label>
@@ -162,7 +174,7 @@ tr:hover{background:rgba(59,130,246,.08)}
 </div>
 
 <!-- 6: CFDs with SF Cases -->
-<div class="section-title">6. Top CFDs with High Salesforce Cases Attached</div>
+<div class="section-title">6. Tickets with High Salesforce Cases Attached</div>
 <div class="card">
   <div class="tbl-filter"><input type="text" id="sfF" placeholder="Search…" oninput="filterTbl('sfTbl','sfF')"><span class="rc" id="sfC"></span></div>
   <div class="table-wrapper"><table id="sfTbl"><thead id="sfH"></thead><tbody id="sfB"></tbody></table></div>
@@ -200,7 +212,24 @@ const PC={'Blocker - P0':'#dc2626','Critical - P1':'#ea580c','Major - P2':'#f59e
 const PCLS={'Blocker - P0':'p-blocker','Critical - P1':'p-critical','Major - P2':'p-major','Minor - P3':'p-minor','Trivial - P4':'p-trivial'};
 Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
 
-let RAW=[];            // all issues from server
+let RAW=[];
+let RAW_ONCALL=[];
+let RAW_CFD=[];
+let currentTab='oncall';
+const FILTER_ID={oncall:'174525',cfd:'127170'};
+const TAB_NAME={oncall:'ONCALL',cfd:'CFD'};
+
+function switchTab(tab){
+  currentTab=tab;
+  document.getElementById('tabOncall').classList.toggle('active',tab==='oncall');
+  document.getElementById('tabCfd').classList.toggle('active',tab==='cfd');
+  if(tab==='cfd'){
+    document.documentElement.style.setProperty('--accent','#8b5cf6');
+  } else {
+    document.documentElement.style.setProperty('--accent','#3b82f6');
+  }
+  renderFromFilter();
+}
 let selectedMonths=3; // default: last 1 qtr
 let charts={};
 let refreshTimer=null, countdownSec=0;
@@ -236,7 +265,8 @@ async function loadDashboard(){
     setTimeout(loadDashboard,3000);return;
   }
   document.getElementById('loadingOverlay').style.display='none';
-  RAW=d.issues;
+  RAW_ONCALL=d.oncall||[];
+  RAW_CFD=d.cfd||[];
   document.getElementById('lastRefreshed').textContent=d.last_refreshed;
   document.getElementById('intTxt').textContent=d.refresh_interval_min;
   startCountdown(d.refresh_interval_min*60);
@@ -258,7 +288,8 @@ async function manualRefresh(){
   const btn=document.getElementById('refreshBtn');btn.disabled=true;btn.textContent='Refreshing…';
   await fetch('/api/refresh',{method:'POST'});
   const oldTs=document.getElementById('lastRefreshed').textContent;
-  const poll=async()=>{const d=await fetchData();if(d&&d.last_refreshed!==oldTs){RAW=d.issues;document.getElementById('lastRefreshed').textContent=d.last_refreshed;renderFromFilter();btn.disabled=false;btn.textContent='Refresh Now';startCountdown(d.refresh_interval_min*60);}else{setTimeout(poll,3000);}};
+  const poll=async()=>{const d=await fetchData();if(d&&d.last_refreshed!==oldTs){RAW_ONCALL=d.oncall||[];
+  RAW_CFD=d.cfd||[];document.getElementById('lastRefreshed').textContent=d.last_refreshed;renderFromFilter();btn.disabled=false;btn.textContent='Refresh Now';startCountdown(d.refresh_interval_min*60);}else{setTimeout(poll,3000);}};
   setTimeout(poll,5000);
 }
 
@@ -285,7 +316,7 @@ function cutoffDate(){
   const d=new Date();d.setMonth(d.getMonth()-selectedMonths);d.setDate(1);return d;
 }
 
-function filtered(){const c=cutoffDate();return RAW.filter(i=>new Date(i.created)>=c);}
+function filtered(){const c=cutoffDate();const ds=currentTab==="oncall"?RAW_ONCALL:RAW_CFD;return ds.filter(i=>new Date(i.created)>=c);}
 
 function formatJqlDate(d){
   const y=d.getFullYear();
@@ -299,8 +330,9 @@ function toJiraSearchUrl(jql){
 }
 
 function baseRangeJql(){
-  if(selectedMonths===0) return 'filter = 174525';
-  return `filter = 174525 AND created >= "${formatJqlDate(cutoffDate())}"`;
+  const fid=FILTER_ID[currentTab];
+  if(selectedMonths===0) return `filter = ${fid}`;
+  return `filter = ${fid} AND created >= "${formatJqlDate(cutoffDate())}"`;
 }
 
 function buildKpiUrl(issues,fallbackClause=''){
@@ -317,7 +349,8 @@ function buildKpiUrl(issues,fallbackClause=''){
 }
 
 function buildKpiTotalUrl(issues){
-  if(selectedMonths===0) return 'https://jira.nutanix.com/issues/?filter=174525';
+  const fid=FILTER_ID[currentTab];
+  if(selectedMonths===0) return `https://jira.nutanix.com/issues/?filter=${fid}`;
   return buildKpiUrl(issues);
 }
 
@@ -402,6 +435,10 @@ function renderFromFilter(){
   const hiClause='priority in ("Blocker - P0", "Critical - P1", "Major - P2")';
   const sfClause='cf[12364] > 0';
 
+  const ds=currentTab==='oncall'?RAW_ONCALL:RAW_CFD;
+  const tName=TAB_NAME[currentTab];
+  const fid=FILTER_ID[currentTab];
+
   // KPIs
   document.getElementById('kpiTotal').textContent=a.total;
   document.getElementById('kpiTotalLink').href=buildKpiTotalUrl(issues);
@@ -411,19 +448,33 @@ function renderFromFilter(){
   document.getElementById('kpiHighImpact').textContent=a.hiCount;
   document.getElementById('kpiSF').textContent=a.sfCount;
   document.getElementById('kpiOpenLink').href=buildKpiUrl(a.openList,openClause);
-  document.getElementById('kpiOpenLink').title=`Open ${a.openCount} open ONCalls in Jira`;
+  document.getElementById('kpiOpenLink').title=`Open ${a.openCount} open ${tName}s in Jira`;
   document.getElementById('kpiClosedLink').href=buildKpiUrl(a.closedList,closedClause);
-  document.getElementById('kpiClosedLink').title=`Open ${a.closedCount} closed ONCalls in Jira`;
+  document.getElementById('kpiClosedLink').title=`Open ${a.closedCount} closed ${tName}s in Jira`;
   document.getElementById('kpiHighImpactLink').href=buildKpiUrl(a.hiList,hiClause);
-  document.getElementById('kpiHighImpactLink').title=`Open ${a.hiCount} high-impact ONCalls in Jira`;
+  document.getElementById('kpiHighImpactLink').title=`Open ${a.hiCount} high-impact ${tName}s in Jira`;
   document.getElementById('kpiSFLink').href=buildKpiUrl(a.sfList,sfClause);
-  document.getElementById('kpiSFLink').title=`Open ${a.sfCount} ONCalls with SF cases in Jira`;
-  document.getElementById('totalBadge').textContent=`${RAW.length} Total Issues`;
-  document.getElementById('openTitle').textContent=`8. Currently Open ONCalls (${a.openCount})`;
-  document.getElementById('allTitle').textContent=`9. All ONCalls in Selected Range (${a.total})`;
+  document.getElementById('kpiSFLink').title=`Open ${a.sfCount} ${tName}s with SF cases in Jira`;
+
+  document.getElementById('totalBadge').textContent=`${ds.length} Total Issues`;
+  const hpa = document.querySelector('.header p a'); if(hpa) hpa.href=`https://jira.nutanix.com/issues/?filter=${fid}`;
+  const hpa2 = document.querySelector('.header p a'); if(hpa2) hpa2.textContent=`JIRA Filter #${fid}`;
+  const fa = document.querySelector('.footer a'); if(fa) fa.href=`https://jira.nutanix.com/issues/?filter=${fid}`;
+  const fa2 = document.querySelector('.footer a'); if(fa2) fa2.textContent=`Filter #${fid}`;
+
+  const kpiT = document.getElementById('kpiTotal'); if(kpiT && kpiT.nextElementSibling) kpiT.nextElementSibling.textContent=`Total ${tName}s (filtered)`;
+  const st0 = document.querySelectorAll('.section-title'); if(st0.length > 0) st0[0].textContent=`1. ${tName} Trends Across Months & Open vs Closed`;
+  const mt = document.getElementById('monthlyTrend'); if(mt && mt.parentElement && mt.parentElement.querySelector('h3')) mt.parentElement.querySelector('h3').textContent=`Monthly ${tName} Trend`;
+  const st = document.querySelectorAll('.section-title'); if(st.length > 6) st[6].textContent=`7. High Impact ${tName}s (P0 / P1 / P2)`;
+  if(document.getElementById('openTitle')) document.getElementById('openTitle').textContent=`8. Currently Open ${tName}s (${a.openCount})`;
+  if(document.getElementById('allTitle')) document.getElementById('allTitle').textContent=`9. All ${tName}s in Selected Range (${a.total})`;
+
+  
+  
 
   // Charts
-  lineChart('monthlyTrend',a.mLabels,a.mTot,'ONCalls Created','#3b82f6');
+  const mainColor = currentTab==='oncall'?'#3b82f6':'#8b5cf6';
+  lineChart('monthlyTrend',a.mLabels,a.mTot,`${tName}s Created`,mainColor);
   dualLineChart('openVsClosed',a.mLabels,a.mOpen,a.mClosed);
   lineChart('sfCasesTrend',a.mLabels,a.mSf,'Salesforce Cases','#a855f7');
   hBar('versionChart',a.ver,COLORS);
@@ -470,7 +521,7 @@ function renderFromFilter(){
   
   labelDatasets.unshift({
     type: 'line',
-    label: 'Total ONCalls',
+    label: `Total ${tName}s`,
     data: a.mTot,
     borderColor: '#3b82f6',
     backgroundColor: '#3b82f626',

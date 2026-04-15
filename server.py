@@ -24,7 +24,8 @@ from fastapi.responses import FileResponse, JSONResponse
 # Config
 # ---------------------------------------------------------------------------
 MCP_BASE_URL = "http://10.113.24.33:3008/mcp/"
-JIRA_FILTER_JQL = "filter=174525 ORDER BY created DESC"
+JIRA_FILTER_ONCALL = "filter=174525 ORDER BY created DESC"
+JIRA_FILTER_CFD = "filter=127170 ORDER BY created DESC"
 JIRA_FIELDS = (
     "summary,status,created,updated,priority,assignee,labels,"
     "reporter,fixVersions,components,resolution,versions,customfield_12364,customfield_10011"
@@ -140,7 +141,7 @@ class MCPClient:
 # ---------------------------------------------------------------------------
 # Jira Data Fetcher
 # ---------------------------------------------------------------------------
-def fetch_all_issues(mcp: MCPClient) -> list:
+def fetch_all_issues(mcp: MCPClient, jql: str) -> list:
     """Paginate through the full filter result set."""
     all_issues = []
     start = 0
@@ -148,7 +149,7 @@ def fetch_all_issues(mcp: MCPClient) -> list:
     while True:
         log.info("Fetching issues %d-%d ...", start, start + PAGE_SIZE - 1)
         result = mcp.call_tool("jira_search", {
-            "jql": JIRA_FILTER_JQL,
+            "jql": jql,
             "fields": JIRA_FIELDS,
             "limit": PAGE_SIZE,
             "start_at": start,
@@ -177,14 +178,14 @@ _AFFECTS_VERSION_PREFIXES = [
 ]
 
 
-def fetch_affects_version_counts(mcp: MCPClient) -> dict:
+def fetch_affects_version_counts(mcp: MCPClient, filter_id: str) -> dict:
     """Query JQL for each major version to build affects-version counts.
     Returns {issue_key: [version, ...]} mapping.
     """
     key_versions: dict[str, list[str]] = defaultdict(list)
 
     def _query_version(ver: str):
-        jql = f'filter=174525 AND affectedVersion = "{ver}"'
+        jql = f'filter={filter_id} AND affectedVersion = "{ver}"'
         try:
             result = mcp.call_tool("jira_search", {
                 "jql": jql, "fields": "summary", "limit": 50, "start_at": 0,
@@ -330,11 +331,24 @@ def refresh_data():
     log.info("Starting data refresh...")
     cache.set_refreshing()
     try:
-        issues = fetch_all_issues(mcp_client)
-        affects_map = fetch_affects_version_counts(mcp_client)
-        data = process_issues(issues, affects_map)
+        log.info("--- Fetching ONCALLs ---")
+        oncall_issues = fetch_all_issues(mcp_client, JIRA_FILTER_ONCALL)
+        oncall_affects = fetch_affects_version_counts(mcp_client, "174525")
+        oncall_data = process_issues(oncall_issues, oncall_affects)
+
+        log.info("--- Fetching CFDs ---")
+        cfd_issues = fetch_all_issues(mcp_client, JIRA_FILTER_CFD)
+        cfd_affects = fetch_affects_version_counts(mcp_client, "127170")
+        cfd_data = process_issues(cfd_issues, cfd_affects)
+
+        data = {
+            "oncall": oncall_data["issues"],
+            "cfd": cfd_data["issues"],
+            "last_refreshed": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "refresh_interval_min": REFRESH_INTERVAL_SECONDS // 60,
+        }
         cache.set(data)
-        log.info("Data refresh complete: %d issues", len(data["issues"]))
+        log.info("Data refresh complete: %d ONCALLs, %d CFDs", len(oncall_issues), len(cfd_issues))
     except Exception as e:
         log.error("Data refresh failed: %s", e, exc_info=True)
         cache.set_error(e)
