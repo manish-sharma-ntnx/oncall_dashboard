@@ -26,6 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse
 MCP_BASE_URL = "http://10.113.24.33:3008/mcp/"
 JIRA_FILTER_ONCALL = "filter=174525 ORDER BY created DESC"
 JIRA_FILTER_CFD = "filter=127170 ORDER BY created DESC"
+JIRA_FILTER_CFI = "filter=126304 ORDER BY created DESC"
 JIRA_FIELDS = (
     "summary,status,created,updated,priority,assignee,labels,"
     "reporter,fixVersions,components,resolution,versions,customfield_12364,customfield_10011"
@@ -341,14 +342,20 @@ def refresh_data():
         cfd_affects = fetch_affects_version_counts(mcp_client, "127170")
         cfd_data = process_issues(cfd_issues, cfd_affects)
 
+        log.info("--- Fetching CFIs ---")
+        cfi_issues = fetch_all_issues(mcp_client, JIRA_FILTER_CFI)
+        cfi_affects = fetch_affects_version_counts(mcp_client, "126304")
+        cfi_data = process_issues(cfi_issues, cfi_affects)
+
         data = {
             "oncall": oncall_data["issues"],
             "cfd": cfd_data["issues"],
+            "cfi": cfi_data["issues"],
             "last_refreshed": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
             "refresh_interval_min": REFRESH_INTERVAL_SECONDS // 60,
         }
         cache.set(data)
-        log.info("Data refresh complete: %d ONCALLs, %d CFDs", len(oncall_issues), len(cfd_issues))
+        log.info("Data refresh complete: %d ONCALLs, %d CFDs, %d CFIs", len(oncall_issues), len(cfd_issues), len(cfi_issues))
     except Exception as e:
         log.error("Data refresh failed: %s", e, exc_info=True)
         cache.set_error(e)

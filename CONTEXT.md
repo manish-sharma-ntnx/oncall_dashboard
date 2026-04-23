@@ -2,7 +2,12 @@
 
 ## Overview
 
-A **live, auto-refreshing dashboard** for Jira filter [#174525](https://jira.nutanix.com/issues/?filter=174525) that tracks MSP Engineering ONCALL tickets. Built with a **FastAPI backend** + **Chart.js frontend**, it fetches data from Jira via the Atlassian MCP bridge every 30 minutes.
+A **live, auto-refreshing dashboard** for Jira filters tracking MSP Engineering tickets. Built with a **FastAPI backend** + **Chart.js frontend**, it fetches data from Jira via the Atlassian MCP bridge every 30 minutes.
+
+Currently tracks three primary filters:
+- **ONCALLs**: Filter [#174525](https://jira.nutanix.com/issues/?filter=174525)
+- **Top CFDs**: Filter [#127170](https://jira.nutanix.com/issues/?filter=127170)
+- **Top CFIs**: Filter [#126304](https://jira.nutanix.com/issues/?filter=126304)
 
 **Dashboard URL:** `http://manish-sharma.r8.ubvm.nutanix.com:8050`
 
@@ -12,7 +17,7 @@ A **live, auto-refreshing dashboard** for Jira filter [#174525](https://jira.nut
 
 ```
 Browser  ──GET /──────────>  FastAPI (server.py :8050)  ──serves──>  dashboard.html
-Browser  ──GET /api/data──>  FastAPI                    ──MCP────>   Jira Filter #174525
+Browser  ──GET /api/data──>  FastAPI                    ──MCP────>   Jira Filters (#174525, #127170, #126304)
 Browser  ──POST /api/refresh──> triggers immediate re-fetch
 ```
 
@@ -20,14 +25,14 @@ Browser  ──POST /api/refresh──> triggers immediate re-fetch
 
 1. **Background thread** in `server.py` runs every 30 min
 2. Connects to the **Atlassian MCP server** at `http://10.113.24.33:3008/mcp` using the MCP Streamable-HTTP protocol (JSON-RPC over SSE)
-3. Calls `jira_search` tool with `filter=174525`, paginating 50 issues at a time (828 total issues currently)
+3. Calls `jira_search` tool with the respective filters (`174525`, `127170`, `126304`), paginating 50 issues at a time
 4. Calls `jira_search` with targeted `affectedVersion = "X"` JQL for 31 major version patterns to build the Affects Version/s mapping (since the MCP tool doesn't expose the `versions` field per-issue)
 5. Processes all issues into lightweight JSON rows and caches in memory
-6. Frontend fetches `/api/data`, receives all issue rows, and does **client-side aggregation** based on the selected time-range filter
+6. Frontend fetches `/api/data`, receives all issue rows for all three tabs, and does **client-side aggregation** based on the selected tab and time-range filter
 
 ### Key Technical Decisions
 
-- **Client-side aggregation**: The server sends all ~828 lightweight issue rows to the browser. The browser aggregates (monthly counts, component counts, version counts, etc.) based on the selected time filter. This means filter changes are instant — no server round-trip.
+- **Client-side aggregation**: The server sends all lightweight issue rows to the browser. The browser aggregates (monthly counts, component counts, version counts, etc.) based on the selected tab and time filter. This means filter and tab changes are instant — no server round-trip.
 - **MCP bridge for Jira auth**: The Jira instance at `jira.nutanix.com` requires authentication. The Atlassian MCP server at `10.113.24.33:3008` handles all auth. The dashboard server talks to Jira exclusively through MCP tool calls.
 - **Affects Version/s workaround**: The MCP Atlassian tool does NOT return the standard Jira `versions` (Affects Version/s) field in its serialized output. As a workaround, `server.py` runs JQL count queries like `filter=174525 AND affectedVersion = "pc.2024.2"` for each major version pattern and maps results back to issue keys.
 
@@ -45,7 +50,14 @@ Browser  ──POST /api/refresh──> triggers immediate re-fetch
 
 ---
 
-## Dashboard Sections (7 widgets)
+## Dashboard Tabs
+
+The dashboard is split into three main tabs, each with identical widgets and tables but driven by different Jira filters:
+- **ONCALLs** (Filter 174525)
+- **Top CFDs** (Filter 127170)
+- **Top CFIs** (Filter 126304)
+
+## Dashboard Sections (8 widgets per tab)
 
 1. **Monthly ONCALL Trend** — Line chart showing oncall volume per month
 2. **Open vs Closed per Month** — Dual line chart (red=Open, green=Closed)
@@ -159,7 +171,9 @@ curl -s http://localhost:8050/api/data | python3.9 -m json.tool | head -20
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MCP_BASE_URL` | `http://10.113.24.33:3008/mcp` | Atlassian MCP endpoint |
-| `JIRA_FILTER_JQL` | `filter=174525 ORDER BY created DESC` | Jira filter query |
+| `JIRA_FILTER_ONCALL` | `filter=174525 ORDER BY created DESC` | Jira filter query for ONCALLs |
+| `JIRA_FILTER_CFD` | `filter=127170 ORDER BY created DESC` | Jira filter query for CFDs |
+| `JIRA_FILTER_CFI` | `filter=126304 ORDER BY created DESC` | Jira filter query for CFIs |
 | `PAGE_SIZE` | `50` | Issues per API page |
 | `REFRESH_INTERVAL_SECONDS` | `1800` (30 min) | Auto-refresh interval |
 | `SERVER_PORT` | `8050` | HTTP port |

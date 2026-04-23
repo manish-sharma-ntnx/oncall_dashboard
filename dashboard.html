@@ -110,6 +110,7 @@ tr:hover{background:rgba(59,130,246,.08)}
 <div class="tab-container">
   <button class="tab-btn active" id="tabOncall" onclick="switchTab('oncall')">ONCALLs (Filter 174525)</button>
   <button class="tab-btn" id="tabCfd" onclick="switchTab('cfd')">Top CFDs (Filter 127170)</button>
+  <button class="tab-btn" id="tabCfi" onclick="switchTab('cfi')">Top CFIs (Filter 126304)</button>
 </div>
 
 <!-- Time-range filter -->
@@ -215,16 +216,20 @@ Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
 let RAW=[];
 let RAW_ONCALL=[];
 let RAW_CFD=[];
+let RAW_CFI=[];
 let currentTab='oncall';
-const FILTER_ID={oncall:'174525',cfd:'127170'};
-const TAB_NAME={oncall:'ONCALL',cfd:'CFD'};
+const FILTER_ID={oncall:'174525',cfd:'127170',cfi:'126304'};
+const TAB_NAME={oncall:'ONCALL',cfd:'CFD',cfi:'CFI'};
 
 function switchTab(tab){
   currentTab=tab;
   document.getElementById('tabOncall').classList.toggle('active',tab==='oncall');
   document.getElementById('tabCfd').classList.toggle('active',tab==='cfd');
+  document.getElementById('tabCfi').classList.toggle('active',tab==='cfi');
   if(tab==='cfd'){
     document.documentElement.style.setProperty('--accent','#8b5cf6');
+  } else if(tab==='cfi'){
+    document.documentElement.style.setProperty('--accent','#ec4899');
   } else {
     document.documentElement.style.setProperty('--accent','#3b82f6');
   }
@@ -267,6 +272,7 @@ async function loadDashboard(){
   document.getElementById('loadingOverlay').style.display='none';
   RAW_ONCALL=d.oncall||[];
   RAW_CFD=d.cfd||[];
+  RAW_CFI=d.cfi||[];
   document.getElementById('lastRefreshed').textContent=d.last_refreshed;
   document.getElementById('intTxt').textContent=d.refresh_interval_min;
   startCountdown(d.refresh_interval_min*60);
@@ -289,7 +295,7 @@ async function manualRefresh(){
   await fetch('/api/refresh',{method:'POST'});
   const oldTs=document.getElementById('lastRefreshed').textContent;
   const poll=async()=>{const d=await fetchData();if(d&&d.last_refreshed!==oldTs){RAW_ONCALL=d.oncall||[];
-  RAW_CFD=d.cfd||[];document.getElementById('lastRefreshed').textContent=d.last_refreshed;renderFromFilter();btn.disabled=false;btn.textContent='Refresh Now';startCountdown(d.refresh_interval_min*60);}else{setTimeout(poll,3000);}};
+  RAW_CFD=d.cfd||[];RAW_CFI=d.cfi||[];document.getElementById('lastRefreshed').textContent=d.last_refreshed;renderFromFilter();btn.disabled=false;btn.textContent='Refresh Now';startCountdown(d.refresh_interval_min*60);}else{setTimeout(poll,3000);}};
   setTimeout(poll,5000);
 }
 
@@ -316,7 +322,7 @@ function cutoffDate(){
   const d=new Date();d.setMonth(d.getMonth()-selectedMonths);d.setDate(1);return d;
 }
 
-function filtered(){const c=cutoffDate();const ds=currentTab==="oncall"?RAW_ONCALL:RAW_CFD;return ds.filter(i=>new Date(i.created)>=c);}
+function filtered(){const c=cutoffDate();const ds=currentTab==="oncall"?RAW_ONCALL:(currentTab==="cfd"?RAW_CFD:RAW_CFI);return ds.filter(i=>new Date(i.created)>=c);}
 
 function formatJqlDate(d){
   const y=d.getFullYear();
@@ -435,7 +441,7 @@ function renderFromFilter(){
   const hiClause='priority in ("Blocker - P0", "Critical - P1", "Major - P2")';
   const sfClause='cf[12364] > 0';
 
-  const ds=currentTab==='oncall'?RAW_ONCALL:RAW_CFD;
+  const ds=currentTab==='oncall'?RAW_ONCALL:(currentTab==='cfd'?RAW_CFD:RAW_CFI);
   const tName=TAB_NAME[currentTab];
   const fid=FILTER_ID[currentTab];
 
@@ -473,7 +479,7 @@ function renderFromFilter(){
   
 
   // Charts
-  const mainColor = currentTab==='oncall'?'#3b82f6':'#8b5cf6';
+  const mainColor = currentTab==='oncall'?'#3b82f6':(currentTab==='cfd'?'#8b5cf6':'#ec4899');
   lineChart('monthlyTrend',a.mLabels,a.mTot,`${tName}s Created`,mainColor);
   dualLineChart('openVsClosed',a.mLabels,a.mOpen,a.mClosed);
   lineChart('sfCasesTrend',a.mLabels,a.mSf,'Salesforce Cases','#a855f7');
